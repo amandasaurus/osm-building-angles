@@ -1,5 +1,4 @@
 extern crate osmio;
-//extern crate rusqlite;
 extern crate flate2;
 
 use std::fs;
@@ -8,7 +7,6 @@ use osmio::{OSMReader, ObjId};
 use osmio::pbf::PBFReader;
 use std::env::args;
 use std::collections::{HashSet, HashMap};
-//use rusqlite::Connection;
 use std::io::Write;
 
 mod sortedcollections;
@@ -110,8 +108,6 @@ fn calculate_angles(zoom_grouping: u8, building_ways: &Vec<osmio::Way>, node_loc
 
     println!("Calculating angles");
     for building in building_ways {
-
-        //println!("Looking at building {} which has {} points: {:?}", building.id, building.nodes.len(), building.nodes);
 
         // last node is the first node for closed ways
         let first_corner = vec![building.nodes[building.nodes.len()-2], building.nodes[0], building.nodes[1]];
