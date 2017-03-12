@@ -1,0 +1,9 @@
+[package]
+name = "osm-building-angles"
+version = "0.1.0"
+authors = ["Rory McCann <rory@technomancy.org>"]
+
+[dependencies]
+osmio = { path = "../osmio" }
+rusqlite = "0.10.1"
+flate2 = "0.2.17"
