@@ -78,10 +78,11 @@ fn read_nodes_for_buildings(filename: &str, nodes_needed: &HashSet<ObjId>) -> Ha
     let file = fs::File::open(&Path::new(&filename)).unwrap();
     let mut node_reader = PBFReader::new(file);
     let node_reader = node_reader.nodes();
+    println!("    Reading nodes");
+    println!("    There are {} nodes we need to extract", nodes_needed.len());
 
     let mut node_locations: HashMap<ObjId, (f32, f32)> = HashMap::new();
     
-    println!("    Reading nodes");
     for node in node_reader {
         // Might be quicker to use binary search thing
         if let (Some(lat), Some(lon)) = (node.lat, node.lon) {
