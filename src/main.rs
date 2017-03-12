@@ -7,7 +7,7 @@ use osmio::{OSMReader, ObjId};
 use osmio::pbf::PBFReader;
 use std::env::args;
 use std::collections::{HashSet, HashMap};
-use std::io::Write;
+use std::io::{Write, BufWriter};
 
 mod sortedcollections;
 
@@ -133,7 +133,7 @@ fn write_results(zoom_grouping: u8, first_results: HashMap<(u32, u32, i16), usiz
     let mut results = first_results;
 
     println!("All buildings calculated, writing results to {}", filename);
-    let mut output_fp = flate2::write::GzEncoder::new(fs::File::create(filename).unwrap(), flate2::Compression::Default);
+    let mut output_fp = BufWriter::new(fs::File::create(filename).unwrap());
 
     output_fp.write(b"zoom,x,y,angle,count\n").unwrap();
     for this_zoom in (1..zoom_grouping+1).rev() {
