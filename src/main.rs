@@ -137,7 +137,7 @@ fn write_results(zoom_grouping: u8, first_results: HashMap<(u32, u32, i16), usiz
     let mut output_fp = BufWriter::new(fs::File::create(filename).unwrap());
 
     output_fp.write(b"zoom,x,y,angle,count\n").unwrap();
-    for this_zoom in (1..zoom_grouping+1).rev() {
+    for this_zoom in (0..zoom_grouping+1).rev() {
         println!("Writing results for zoom {}", this_zoom);
         let mut new_level = HashMap::new();
         for ((x, y, angle), count) in results {
