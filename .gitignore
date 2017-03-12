@@ -1,0 +1,7 @@
+target
+*.osm.pbf
+display/ve/*
+output*.csv
+*.db
+.*.swp
+
