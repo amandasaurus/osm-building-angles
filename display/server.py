@@ -7,7 +7,7 @@ from matplotlib import pyplot as plt
 import math
 
 
-fnt = ImageFont.truetype('Pillow/Tests/fonts/FreeMono.ttf', 14)
+fnt = ImageFont.truetype('/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf', 10)
 
 
 class ImagesServer(BaseHTTPRequestHandler):
@@ -26,12 +26,12 @@ class ImagesServer(BaseHTTPRequestHandler):
             im = Image.new('RGBA', (256, 256), '#ffffff00')
 
             d = ImageDraw.Draw(im)
-            self.db_cursor.execute("select count(*) from angles where zoom = ? and x = ? and y = ?", (zoom, x, y))
+            self.db_cursor.execute("select sum(count) from angles where zoom = ? and x = ? and y = ?", (zoom, x, y))
             num_buildings = self.db_cursor.fetchone()[0]
 
             if num_buildings > 0:
                 d.rectangle(((0,0), (255, 255)), outline="#0004", fill="#0000")
-                d.text((2,10), "{}/{}/{} Total: {}".format(zoom, x, y, num_buildings), font=fnt, fill='black')
+                d.text((2,9), "{}/{}/{} Total: {:,}".format(zoom, x, y, num_buildings), font=fnt, fill='black')
 
                 self.db_cursor.execute("select angle, count from angles where zoom = ? and x = ? and y = ? order by angle", (zoom, x, y))
                 building_angles = self.db_cursor.fetchall()
@@ -48,7 +48,7 @@ class ImagesServer(BaseHTTPRequestHandler):
                 buffer.seek(0)
                 graph = Image.open(buffer)
 
-                im.paste(graph, (1, 20))
+                im.paste(graph, (1, 25))
                 buffer.close()
 
             im.save(self.rfile, "png")
