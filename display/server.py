@@ -31,7 +31,7 @@ class ImagesServer(BaseHTTPRequestHandler):
 
             if num_buildings > 0:
                 d.rectangle(((0,0), (255, 255)), outline="#0004", fill="#0000")
-                d.text((2,9), "{}/{}/{} Total: {:,}".format(zoom, x, y, num_buildings), font=fnt, fill='black')
+                d.text((2,9), "{}/{}/{} Num Points: {:,}".format(zoom, x, y, num_buildings), font=fnt, fill='black')
 
                 self.db_cursor.execute("select angle, count from angles where zoom = ? and x = ? and y = ? order by angle", (zoom, x, y))
                 building_angles = self.db_cursor.fetchall()
