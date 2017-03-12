@@ -14,17 +14,22 @@ use std::io::Write;
 mod sortedcollections;
 
 fn latlon_to_3857(lat: f32, lon: f32) -> (f32, f32) {
-    let x = lon * 20037508.34 / 180.;
-    let y = (((90. + lat) * ::std::f32::consts::PI / 360.).tan()).ln() / (::std::f32::consts::PI / 180.);
-    let y = y * 20037508.34 / 180.;
+    // There's a few metres difference if we do the calc in f32...
+    let lon: f64 = lon as f64;
+    let lat: f64 = lat as f64;
+    let x: f64 = lon * 20037508.34 / 180.;
+    let y: f64 = (((90. + lat) * ::std::f64::consts::PI / 360.).tan()).ln() / (::std::f64::consts::PI / 180.);
+    let y: f64 = y * 20037508.34 / 180.;
+    let y: f32 = y as f32;
+    let x: f32 = x as f32;
     (x, y)
 }
 
 fn xy_to_tile(x: f32, y:f32, zoom: u8) -> (u32, u32) {
     if zoom == 0 { return (0, 0); }
 
-    let max_x = 20026376.39;
-    let max_y = 20048966.10;
+    let max_x = 20037508.34;
+    let max_y = 20037508.34;
 
     let x_frac = (max_x + x) / (2. * max_x);
     let y_frac = (max_y - y) / (2. * max_y);
@@ -172,15 +177,22 @@ mod tests {
         
     }
 
-    //#[test]
+    #[test]
+    fn test_transform() {
+        use super::latlon_to_3857;
+        assert_eq!(latlon_to_3857(29.91134, 11.92187), (1327136.50, 3492158.51));
+    }
+
+    #[test]
     fn test_xy_to_tile() {
         use super::{xy_to_tile, latlon_to_3857};
         let pos_3857 = latlon_to_3857(29.91134, 11.92187);
-        let tiles = vec![ (0, 0), (1, 0), (2, 1), (4, 3), (8, 6), (17, 13), (34, 26), (68, 52), (136, 105), (272, 211), (545, 422), (1091, 845), (2183, 1691), (4367, 3382), (8734, 6764)];
+        let tiles = vec![ (0, 0), (1, 0), (2, 1), (4, 3), (8, 6), (17, 13), (34, 26), (68, 52), (136, 105), (272, 211), (545, 422), (1091, 845), (2183, 1691), (4367, 3382), (8734, 6764), (17469, 13528), (34938, 27057), (69876, 54114), (139753, 108228)];
         for (zoom, expected) in tiles.into_iter().enumerate() {
             assert_eq!(xy_to_tile(pos_3857.0, pos_3857.1, zoom as u8), expected);
         }
                         
     }
-
 }
+
+
