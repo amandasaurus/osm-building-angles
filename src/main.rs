@@ -133,7 +133,8 @@ fn write_results(zoom_grouping: u8, first_results: HashMap<(u32, u32, i16), usiz
     let mut results = first_results;
 
     println!("All buildings calculated, writing results to {}", filename);
-    let mut output_fp = fs::File::create(filename).unwrap();
+    let mut output_fp = flate2::write::GzEncoder::new(fs::File::create(filename).unwrap(), flate2::Compression::Default);
+
     output_fp.write(b"zoom,x,y,angle,count\n").unwrap();
     for this_zoom in (1..zoom_grouping+1).rev() {
         println!("Writing results for zoom {}", this_zoom);
