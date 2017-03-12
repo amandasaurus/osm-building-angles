@@ -1,5 +1,6 @@
 extern crate osmio;
 //extern crate rusqlite;
+extern crate flate2;
 
 use std::fs;
 use std::path::Path;
@@ -49,7 +50,7 @@ fn angle(x1: f32, y1: f32, x2: f32, y2: f32, x3: f32, y3: f32) -> i16 {
     angle.to_degrees().round() as i16
 }
 
-fn read_file(filename: &str) -> (Vec<osmio::Way>, HashMap<ObjId, (f32, f32)>) {
+fn read_buildings(filename: &str) -> (Vec<osmio::Way>, HashSet<ObjId>) {
     let file = fs::File::open(&Path::new(&filename)).unwrap();
     let mut way_reader = PBFReader::new(file);
     let way_reader = way_reader.ways();
@@ -67,6 +68,10 @@ fn read_file(filename: &str) -> (Vec<osmio::Way>, HashMap<ObjId, (f32, f32)>) {
     }
     println!("    There are {} buildings", building_ways.len());
 
+    (building_ways, nodes_needed)
+}
+
+fn read_nodes_for_buildings(filename: &str, nodes_needed: &HashSet<ObjId>) -> HashMap<ObjId, (f32, f32)> {
     let file = fs::File::open(&Path::new(&filename)).unwrap();
     let mut node_reader = PBFReader::new(file);
     let node_reader = node_reader.nodes();
@@ -83,6 +88,13 @@ fn read_file(filename: &str) -> (Vec<osmio::Way>, HashMap<ObjId, (f32, f32)>) {
             }
         }
     }
+
+    node_locations
+}
+
+fn read_file(filename: &str) -> (Vec<osmio::Way>, HashMap<ObjId, (f32, f32)>) {
+    let (building_ways, nodes_needed) = read_buildings(filename);
+    let node_locations = read_nodes_for_buildings(filename, &nodes_needed);
 
     (building_ways, node_locations)
 }
