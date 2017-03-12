@@ -81,7 +81,7 @@ fn read_nodes_for_buildings(filename: &str, nodes_needed: &HashSet<ObjId>) -> Ha
     println!("    Reading nodes");
     println!("    There are {} nodes we need to extract", nodes_needed.len());
 
-    let mut node_locations: HashMap<ObjId, (f32, f32)> = HashMap::new();
+    let mut node_locations: HashMap<ObjId, (f32, f32)> = HashMap::with_capacity(nodes_needed.len());
     
     for node in node_reader {
         // Might be quicker to use binary search thing
