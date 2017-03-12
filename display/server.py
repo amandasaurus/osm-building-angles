@@ -36,8 +36,16 @@ class ImagesServer(BaseHTTPRequestHandler):
                 self.db_cursor.execute("select angle, count from angles where zoom = ? and x = ? and y = ? order by angle", (zoom, x, y))
                 building_angles = self.db_cursor.fetchall()
                 angles = [math.radians(x[0]) for x in building_angles]
-                count = [x[1] for x in building_angles]
-                
+
+                # Linerar chart
+                #count = [x[1] for x in building_angles]
+                # Log (base 10) chart
+                count = [math.log10(x[1]) for x in building_angles]
+                # Log (base 2)
+                #count = [math.log(x[1], 2) for x in building_angles]
+                # Sqrt 
+                #count = [math.sqrt(x[1]) for x in building_angles]
+
                 plt.clf()
                 plt.subplot(111, projection='polar')
                 if num_buildings > 0:
