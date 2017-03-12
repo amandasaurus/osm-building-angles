@@ -49,9 +49,7 @@ fn angle(x1: f32, y1: f32, x2: f32, y2: f32, x3: f32, y3: f32) -> i16 {
     angle.to_degrees().round() as i16
 }
 
-fn main() {
-    let filename = args().nth(1).unwrap();
-    // get all the ways we need
+fn read_file(filename: &str) -> (Vec<osmio::Way>, HashMap<ObjId, (f32, f32)>) {
     let file = fs::File::open(&Path::new(&filename)).unwrap();
     let mut way_reader = PBFReader::new(file);
     let way_reader = way_reader.ways();
@@ -86,7 +84,10 @@ fn main() {
         }
     }
 
-    let zoom_grouping = 18;
+    (building_ways, node_locations)
+}
+
+fn calculate_angles(zoom_grouping: u8, building_ways: &Vec<osmio::Way>, node_locations: &HashMap<ObjId, (f32, f32)>) -> HashMap<(u32, u32, i16), usize> {
 
     let mut results = HashMap::new();
 
@@ -111,9 +112,15 @@ fn main() {
 
     }
 
+    results
 
-    println!("All buildings calculated, writing results to output.csv");
-    let mut output_fp = fs::File::create("output.csv").unwrap();
+}
+
+fn write_results(zoom_grouping: u8, first_results: HashMap<(u32, u32, i16), usize>, filename: &str) {
+    let mut results = first_results;
+
+    println!("All buildings calculated, writing results to {}", filename);
+    let mut output_fp = fs::File::create(filename).unwrap();
     output_fp.write(b"zoom,x,y,angle,count\n").unwrap();
     for this_zoom in (1..zoom_grouping+1).rev() {
         println!("Calculating zoom {}", this_zoom);
@@ -126,28 +133,21 @@ fn main() {
     }
 
 
+}
 
-    // SQLite output - slow
-    //println!("All buildings calculated, writing results to output.db");
-    //let conn = Connection::open("output.db").unwrap();
+fn main() {
+    let input_filename = args().nth(1).unwrap();
+    let output_filename = args().nth(2).unwrap();
+    
+    let (building_ways, node_locations) = read_file(&input_filename);
 
-    //conn.execute_batch("DROP TABLE IF EXISTS angles; CREATE TABLE IF NOT EXISTS angles (
-    //              zoom INTEGER NOT NULL,
-    //              x INTEGER NOT NULL,
-    //              y INTEGER NOT NULL,
-    //              angle INTEGER NOT NULL,
-    //              count INTEGER NOT NULL,
-    //              PRIMARY KEY (zoom, x, y, angle)
-    //              )").unwrap();
-    // // TODO WITHOUT ROWID?
+    let zoom_grouping = 18;
 
-    //let mut stmt = conn.prepare("INSERT INTO angles (zoom, x, y, angle, count) VALUES (?1, ?2, ?3, ?4, ?5)").unwrap();
+    let results = calculate_angles(zoom_grouping, &building_ways, &node_locations);
 
-    //for (key, val) in results {
-    //     stmt.execute(&[&zoom_grouping, &key.0, &key.1, &key.2, &val]).unwrap();
-    //}
+    write_results(zoom_grouping, results, &output_filename);
+
     println!("Finished");
-
 
 }
 
