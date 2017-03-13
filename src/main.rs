@@ -71,6 +71,8 @@ fn read_buildings(filename: &str) -> (Vec<Vec<ObjId>>, HashSet<ObjId>) {
     }
     println!("    There are {} buildings", building_ways.len());
 
+    building_ways.shrink_to_fit();
+    nodes_needed.shrink_to_fit();
     (building_ways, nodes_needed)
 }
 
@@ -93,6 +95,7 @@ fn read_nodes_for_buildings(filename: &str, nodes_needed: &HashSet<ObjId>) -> Ha
         }
     }
 
+    node_locations.shrink_to_fit();
     node_locations
 }
 
