@@ -53,7 +53,7 @@ fn angle(x1: f32, y1: f32, x2: f32, y2: f32, x3: f32, y3: f32) -> i16 {
     angle.to_degrees().round() as i16
 }
 
-fn read_buildings(filename: &str) -> (Vec<osmio::Way>, HashSet<ObjId>) {
+fn read_buildings(filename: &str) -> (Vec<Vec<ObjId>>, HashSet<ObjId>) {
     let file = fs::File::open(&Path::new(&filename)).unwrap();
     let mut way_reader = PBFReader::new(file);
     let way_reader = way_reader.ways();
@@ -66,7 +66,7 @@ fn read_buildings(filename: &str) -> (Vec<osmio::Way>, HashSet<ObjId>) {
     for way in way_reader {
         if way.tags.get("building").unwrap_or(&"no".to_string()) != "no" {
             nodes_needed.extend(way.nodes.iter());
-            building_ways.push(way);
+            building_ways.push(way.nodes);
         }
     }
     println!("    There are {} buildings", building_ways.len());
@@ -96,14 +96,14 @@ fn read_nodes_for_buildings(filename: &str, nodes_needed: &HashSet<ObjId>) -> Ha
     node_locations
 }
 
-fn read_file(filename: &str) -> (Vec<osmio::Way>, HashMap<ObjId, (f32, f32)>) {
+fn read_file(filename: &str) -> (Vec<Vec<ObjId>>, HashMap<ObjId, (f32, f32)>) {
     let (building_ways, nodes_needed) = read_buildings(filename);
     let node_locations = read_nodes_for_buildings(filename, &nodes_needed);
 
     (building_ways, node_locations)
 }
 
-fn calculate_angles(zoom_grouping: u8, building_ways: &Vec<osmio::Way>, node_locations: &HashMap<ObjId, (f32, f32)>) -> HashMap<(u32, u32, i16), usize> {
+fn calculate_angles(zoom_grouping: u8, building_ways: &Vec<Vec<ObjId>>, node_locations: &HashMap<ObjId, (f32, f32)>) -> HashMap<(u32, u32, i16), usize> {
 
     let mut results = HashMap::new();
 
@@ -111,8 +111,8 @@ fn calculate_angles(zoom_grouping: u8, building_ways: &Vec<osmio::Way>, node_loc
     for building in building_ways {
 
         // last node is the first node for closed ways
-        let first_corner = vec![building.nodes[building.nodes.len()-2], building.nodes[0], building.nodes[1]];
-        let mut corners: Vec<_> = building.nodes.windows(3).collect();
+        let first_corner = vec![building[building.len()-2], building[0], building[1]];
+        let mut corners: Vec<_> = building.windows(3).collect();
         corners.push(&first_corner);
         for corner in corners {
             let (left_id, centre_id, right_id) = (corner[0], corner[1], corner[2]);
