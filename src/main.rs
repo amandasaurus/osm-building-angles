@@ -10,6 +10,8 @@ use std::io::{Write, BufWriter};
 
 mod sortedcollections;
 
+use osmio::nodechain::NodeChain;
+
 fn latlon_to_3857(lat: f32, lon: f32) -> (f32, f32) {
     // There's a few metres difference if we do the calc in f32...
     let lon: f64 = lon as f64;
@@ -52,7 +54,7 @@ fn angle(x1: f32, y1: f32, x2: f32, y2: f32, x3: f32, y3: f32) -> i16 {
     angle.to_degrees().round() as i16
 }
 
-fn read_buildings(filename: &str) -> (Vec<Vec<ObjId>>, HashSet<ObjId>) {
+fn read_buildings(filename: &str) -> (Vec<NodeChain>, HashSet<ObjId>) {
     let file = fs::File::open(&Path::new(&filename)).unwrap();
     let mut way_reader = PBFReader::new(file);
     let way_reader = way_reader.ways();
@@ -65,7 +67,7 @@ fn read_buildings(filename: &str) -> (Vec<Vec<ObjId>>, HashSet<ObjId>) {
     for way in way_reader {
         if way.tags.get("building").unwrap_or(&"no".to_string()) != "no" {
             nodes_needed.extend(way.nodes.iter());
-            building_ways.push(way.nodes);
+            building_ways.push(NodeChain::new(&way.nodes));
         }
     }
     println!("    There are {} buildings", building_ways.len());
@@ -98,19 +100,21 @@ fn read_nodes_for_buildings(filename: &str, nodes_needed: &HashSet<ObjId>) -> Ha
     node_locations
 }
 
-fn read_file(filename: &str) -> (Vec<Vec<ObjId>>, HashMap<ObjId, (f32, f32)>) {
+fn read_file(filename: &str) -> (Vec<NodeChain>, HashMap<ObjId, (f32, f32)>) {
     let (building_ways, nodes_needed) = read_buildings(filename);
     let node_locations = read_nodes_for_buildings(filename, &nodes_needed);
 
     (building_ways, node_locations)
 }
 
-fn calculate_angles(zoom_grouping: u8, building_ways: &Vec<Vec<ObjId>>, node_locations: &HashMap<ObjId, (f32, f32)>) -> HashMap<(u32, u32, i16), usize> {
+fn calculate_angles(zoom_grouping: u8, building_ways: &Vec<NodeChain>, node_locations: &HashMap<ObjId, (f32, f32)>) -> HashMap<(u32, u32, i16), usize> {
 
     let mut results = HashMap::new();
 
     println!("Calculating angles");
     for building in building_ways {
+
+        let building = building.nodes();
 
         // last node is the first node for closed ways
         let first_corner = vec![building[building.len()-2], building[0], building[1]];
