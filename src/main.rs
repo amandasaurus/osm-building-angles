@@ -1,5 +1,4 @@
 extern crate osmio;
-extern crate flate2;
 
 use std::fs;
 use std::path::Path;
