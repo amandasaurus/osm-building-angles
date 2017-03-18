@@ -5,6 +5,7 @@ import sqlite3
 import cStringIO
 from matplotlib import pyplot as plt
 import math
+import traceback
 
 
 fnt = ImageFont.truetype('/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf', 10)
@@ -61,6 +62,7 @@ class ImagesServer(BaseHTTPRequestHandler):
 
             im.save(self.rfile, "png")
         except Exception as ex:
+            traceback.print_exc()
             print "Error ", repr(ex)
             self.send_response(404)
             self.end_headers()
