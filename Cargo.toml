@@ -7,3 +7,5 @@ authors = ["Rory McCann <rory@technomancy.org>"]
 osmio = { path = "../osmio" }
 rusqlite = "0.10.1"
 flate2 = "0.2.17"
+byteorder = "1.0.0"
+bloom = "0.2.0"

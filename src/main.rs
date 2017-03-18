@@ -1,4 +1,6 @@
 extern crate osmio;
+extern crate byteorder;
+extern crate bloom;
 
 use std::fs;
 use std::path::Path;
@@ -6,7 +8,9 @@ use osmio::{OSMReader, ObjId};
 use osmio::pbf::PBFReader;
 use std::env::args;
 use std::collections::{HashSet, HashMap};
-use std::io::{Write, BufWriter};
+use std::io::{Read, Write, BufWriter, BufReader, Seek, SeekFrom};
+use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
+use bloom::BloomFilter;
 
 mod sortedcollections;
 
@@ -52,65 +56,135 @@ fn angle(x1: f32, y1: f32, x2: f32, y2: f32, x3: f32, y3: f32) -> i16 {
     angle.to_degrees().round() as i16
 }
 
-fn read_buildings(filename: &str) -> (Vec<Vec<ObjId>>, HashSet<ObjId>) {
-    let file = fs::File::open(&Path::new(&filename)).unwrap();
-    let mut way_reader = PBFReader::new(file);
-    let way_reader = way_reader.ways();
-
-    let mut nodes_needed: HashSet<ObjId> = HashSet::new();
-
-    let mut building_ways = Vec::new();
-    println!("Reading buildings");
-    println!("    Reading ways");
-    for way in way_reader {
-        if way.tags.get("building").unwrap_or(&"no".to_string()) != "no" {
-            nodes_needed.extend(way.nodes.iter());
-            building_ways.push(way.nodes);
-        }
-    }
-    println!("    There are {} buildings", building_ways.len());
-
-    building_ways.shrink_to_fit();
-    nodes_needed.shrink_to_fit();
-    (building_ways, nodes_needed)
+struct NodeStoreWriter {
+    max_node_id: u64,
+    fp: BufWriter<fs::File>,
 }
 
-fn read_nodes_for_buildings(filename: &str, nodes_needed: &HashSet<ObjId>) -> HashMap<ObjId, (f32, f32)> {
-    let file = fs::File::open(&Path::new(&filename)).unwrap();
-    let mut node_reader = PBFReader::new(file);
-    let node_reader = node_reader.nodes();
-    println!("    Reading nodes");
-    println!("    There are {} nodes we need to extract", nodes_needed.len());
+struct NodeStoreReader {
+    fp: BufReader<fs::File>,
+}
 
-    let mut node_locations: HashMap<ObjId, (f32, f32)> = HashMap::with_capacity(nodes_needed.len());
-    
-    for node in node_reader {
-        // Might be quicker to use binary search thing
-        if let (Some(lat), Some(lon)) = (node.lat, node.lon) {
-            if nodes_needed.contains(&node.id) {
-                let (x, y) = latlon_to_3857(lat, lon);
-                node_locations.insert(node.id, (x, y));
+impl NodeStoreWriter {
+    fn create(filename: &str) -> Self {
+        let fp = BufWriter::new(fs::File::create(filename).unwrap());
+        NodeStoreWriter{ max_node_id: 0, fp: fp }
+    }
+
+
+    fn set_node(&mut self, node_id: u64, lat: f32, lon: f32) {
+        if self.max_node_id < node_id {
+            //self.fp.set_len(node_id*8);
+            self.fp.seek(SeekFrom::End(0)).unwrap();
+            for _ in self.max_node_id..node_id {
+                self.fp.write_f32::<BigEndian>(200f32).unwrap();
+                self.fp.write_f32::<BigEndian>(200f32).unwrap();
+            }
+            self.max_node_id = node_id;
+        }
+        self.fp.seek(SeekFrom::Start(node_id*8)).unwrap();
+        self.fp.write_f32::<BigEndian>(lat).unwrap();
+        self.fp.write_f32::<BigEndian>(lon).unwrap();
+    }
+}
+
+impl NodeStoreReader {
+    fn open(filename: &str) -> Self {
+        let fp = BufReader::new(fs::File::open(filename).unwrap());
+        NodeStoreReader{ fp: fp }
+    }
+
+    fn get(&mut self, node_id: &u64) -> Option<(f32, f32)> {
+        self.fp.seek(SeekFrom::Start(node_id*8)).unwrap();
+        let lat = self.fp.read_f32::<BigEndian>().unwrap();
+        let lon = self.fp.read_f32::<BigEndian>().unwrap();
+        if lat == 200f32 || lon == 200f32 {
+            None
+        } else {
+            Some((lat, lon))
+        }
+    }
+}
+
+fn extract_data(filename: &str) {
+    let file = BufReader::new(fs::File::open(&Path::new(&filename)).unwrap());
+    let mut way_reader = PBFReader::new(file);
+    let obj_reader = way_reader.objects();
+
+    let mut way_nodes_fp = BufWriter::new(fs::File::create("building-way-nodes").unwrap());
+
+    let mut node_store = NodeStoreWriter::create("nodes");
+
+    println!("Reading buildings");
+    println!("    Reading Nodes & Buildings");
+    let mut num_buildings = 0;
+    let mut num_nodes = 0;
+    for obj in obj_reader {
+        match obj {
+            osmio::OSMObj::Node(node) => {
+                let node_id = node.id;
+                if let (Some(lat), Some(lon)) = (node.lat, node.lon) {
+                    node_store.set_node(node_id, lat, lon);
+                }
+            },
+            osmio::OSMObj::Way(way) => {
+                if way.tags.get("building").unwrap_or(&"no".to_string()) != "no" {
+                    num_nodes += way.nodes.len();
+                    for node in way.nodes {
+                        way_nodes_fp.write_u64::<BigEndian>(node).unwrap();
+                    }
+                    way_nodes_fp.write_u64::<BigEndian>(0).unwrap();
+                    num_buildings += 1;
+                }
+            },
+            osmio::OSMObj::Relation(_) => {
+                break;
+            }
+        }
+    }
+    println!("    There are {} buildings", num_buildings);
+    drop(way_nodes_fp);
+    drop(node_store);
+
+}
+
+
+fn get_next_way<R: Read>(way_nodes_fp: &mut R) -> Option<Vec<ObjId>> {
+    let mut results = Vec::new();
+    loop {
+        match way_nodes_fp.read_u64::<BigEndian>() {
+            Err(_) => {
+                // EOF
+                return None;
+            },
+            Ok(num) => {
+                if num == 0 {
+                    // end of this way
+                    break
+                } else {
+                    results.push(num);
+                }
             }
         }
     }
 
-    node_locations.shrink_to_fit();
-    node_locations
+    Some(results)
 }
 
-fn read_file(filename: &str) -> (Vec<Vec<ObjId>>, HashMap<ObjId, (f32, f32)>) {
-    let (building_ways, nodes_needed) = read_buildings(filename);
-    let node_locations = read_nodes_for_buildings(filename, &nodes_needed);
-
-    (building_ways, node_locations)
-}
-
-fn calculate_angles(zoom_grouping: u8, building_ways: &Vec<Vec<ObjId>>, node_locations: &HashMap<ObjId, (f32, f32)>) -> HashMap<(u32, u32, i16), usize> {
+fn calculate_angles(zoom_grouping: u8) -> HashMap<(u32, u32, i16), usize> {
 
     let mut results = HashMap::new();
+    let mut way_nodes_fp = BufReader::new(fs::File::open("building-way-nodes").unwrap());
+
+    let mut node_store = NodeStoreReader::open("nodes");
 
     println!("Calculating angles");
-    for building in building_ways {
+    loop {
+        let building = get_next_way(&mut way_nodes_fp);
+        if building.is_none() {
+            break;
+        }
+        let building = building.unwrap();
 
         // last node is the first node for closed ways
         let first_corner = vec![building[building.len()-2], building[0], building[1]];
@@ -118,15 +192,17 @@ fn calculate_angles(zoom_grouping: u8, building_ways: &Vec<Vec<ObjId>>, node_loc
         corners.push(&first_corner);
         for corner in corners {
             let (left_id, centre_id, right_id) = (corner[0], corner[1], corner[2]);
-            let left = node_locations.get(&left_id).unwrap();
-            let centre = node_locations.get(&centre_id).unwrap();
-            let right = node_locations.get(&right_id).unwrap();
+            let left = node_store.get(&left_id).unwrap();
+            let centre = node_store.get(&centre_id).unwrap();
+            let right = node_store.get(&right_id).unwrap();
             let this_angle = angle(centre.0, centre.1, left.0, left.1, right.0, right.1);
             let tile = xy_to_tile(centre.0, centre.1, zoom_grouping);
             *results.entry((tile.0, tile.1, this_angle)).or_insert(0) += 1;
         }
 
     }
+
+    //fs::remove_file("building-way-nodes").ok();
 
     results
 
@@ -138,9 +214,11 @@ fn write_results(zoom_grouping: u8, first_results: HashMap<(u32, u32, i16), usiz
     println!("All buildings calculated, writing results to {}", filename);
     let mut output_fp = BufWriter::new(fs::File::create(filename).unwrap());
 
+    print!("Writing results for zoom ");
     output_fp.write(b"zoom,x,y,angle,count\n").unwrap();
     for this_zoom in (0..zoom_grouping+1).rev() {
-        println!("Writing results for zoom {}", this_zoom);
+        print!(" {}", this_zoom);
+        std::io::stdout().flush().ok();
         let mut new_level = HashMap::new();
         for ((x, y, angle), count) in results {
             writeln!(output_fp, "{},{},{},{},{}", this_zoom, x, y, angle, count).unwrap();
@@ -148,6 +226,7 @@ fn write_results(zoom_grouping: u8, first_results: HashMap<(u32, u32, i16), usiz
         }
         results = new_level;
     }
+    println!("")
 
 
 }
@@ -156,11 +235,11 @@ fn main() {
     let input_filename = args().nth(1).unwrap();
     let output_filename = args().nth(2).unwrap();
     
-    let (building_ways, node_locations) = read_file(&input_filename);
+    extract_data(&input_filename);
 
     let zoom_grouping = 18;
 
-    let results = calculate_angles(zoom_grouping, &building_ways, &node_locations);
+    let results = calculate_angles(zoom_grouping);
 
     write_results(zoom_grouping, results, &output_filename);
 
